@@ -7,7 +7,7 @@
 typedef struct task {
     void(*function)(void*);
     void* arg;
-    task_t* next;
+    struct task* next;
 
 } task_t;
 
