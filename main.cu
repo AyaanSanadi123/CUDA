@@ -29,6 +29,15 @@ __global__ void vector_add_kernel(const float* a, const float* b, float* c, int 
     }
 }
 
+// ---------------------------------------------------------
+// 0. SINGLE-THREADED BASELINE
+// ---------------------------------------------------------
+void vector_add_baseline(const float* a, const float* b, float* c, int N) {
+    for (int i = 0; i < N; i++) {
+        c[i] = a[i] + b[i];
+    }
+}
+
 
 void verify_results(const float* c, int N, float expected, const char* engine_name) {
     for (int i = 0; i < N; i++) {
@@ -45,7 +54,7 @@ void verify_results(const float* c, int N, float expected, const char* engine_na
 // 3. MAIN BENCHMARK DRIVER
 // ---------------------------------------------------------
 int main() {
-    int N = 50; // 50 million elements
+    int N = 500000000; // 50 million elements
     size_t bytes = N * sizeof(float);
     int num_threads = 8; // For POSIX threads
 
@@ -64,12 +73,24 @@ int main() {
     printf("-------------------------------------------\n");
 
     // ==========================================
-    // BENCHMARK 1: POSIX THREADS (Scalar)
+    // BENCHMARK 0: SINGLE CPU CORE (Baseline)
     // ==========================================
     memset(h_c, 0, bytes);
     double start = get_time();
-    launch_thread_pool(h_a, h_b, h_c, N, num_threads, cpu_worker_scalar);
+    vector_add_baseline(h_a, h_b, h_c, N);
     double end = get_time();
+    
+    printf("CPU (Single-Threaded Baseline): %f s\n", (end - start));
+    verify_results(h_c, N, 3.0f, "Single CPU");
+    double baseline_time = end - start;
+
+    // ==========================================
+    // BENCHMARK 1: POSIX THREADS (Scalar)
+    // ==========================================
+    memset(h_c, 0, bytes);
+     start = get_time();
+    launch_thread_pool(h_a, h_b, h_c, N, num_threads, cpu_worker_scalar);
+     end = get_time();
     printf("Pthreads (Scalar, %d threads): %f s\n", num_threads, (end - start));
     verify_results(h_c, N, 3.0f, "Scalar C++");
     double scalar_time = end - start;
@@ -117,14 +138,20 @@ int main() {
     verify_results(h_c, N, 3.0f, "CUDA GPU");
     double gpu_time = end - start;
 
-
     // ==========================================
     // SPEEDUP ANALYSIS
     // ==========================================
     printf("\n--- Performance Speedup ---\n");
-    printf("ISPC SIMD is %.2fx faster than Scalar C++\n", scalar_time / ispc_time);
-    printf("CUDA GPU is %.2fx faster than Scalar C++\n", scalar_time / gpu_time);
-    printf("CUDA GPU is %.2fx faster than ISPC SIMD\n", ispc_time / gpu_time);
+    
+    // Baseline comparisons
+    printf("8-Thread Scalar is %.2fx faster than Single Core\n", baseline_time / scalar_time);
+    printf("8-Thread ISPC SIMD is %.2fx faster than Single Core\n", baseline_time / ispc_time);
+    printf("CUDA GPU is %.2fx faster than Single Core\n", baseline_time / gpu_time);
+    
+    // Multi-core vs SIMD vs GPU
+    printf("8-Thread ISPC SIMD is %.2fx faster than 8-Thread Scalar\n", scalar_time / ispc_time);
+    printf("CUDA GPU is %.2fx faster than 8-Thread Scalar\n", scalar_time / gpu_time);
+    printf("CUDA GPU is %.2fx faster than 8-Thread ISPC SIMD\n", ispc_time / gpu_time);
 
 
     // Cleanup OUTSIDE the timer
