@@ -1,20 +1,13 @@
-// thread_pool.h
 #ifndef THREAD_POOL_H
 #define THREAD_POOL_H
+#include <pthread.h>
 
-#include "types.h"
+typedef struct task{
+    void(function*)(void*);
+    void* arg;
+    task_t next;
 
-#ifdef __cplusplus
-extern "C" {
+}  task_t;
+
+
 #endif
-
-// Spawns pthreads, divides the array N into chunks, and executes worker_func
-void launch_thread_pool(const float* a, const float* b, float* c, 
-                        int N, int num_threads, 
-                        void (*worker_func)(void*));
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif // THREAD_POOL_H
