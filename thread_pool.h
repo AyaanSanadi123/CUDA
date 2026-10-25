@@ -11,7 +11,7 @@ extern "C" {
 // Spawns pthreads, divides the array N into chunks, and executes worker_func
 void launch_thread_pool(const float* a, const float* b, float* c, 
                         int N, int num_threads, 
-                        void* (*worker_func)(void*));
+                        void (*worker_func)(void*));
 
 #ifdef __cplusplus
 }
