@@ -74,3 +74,59 @@ void pool_init(int num_threads){
         pthread_create(&(pool->threads[i]), NULL, thread_worker, NULL);
     }
 }
+
+void pool_submit(void (*function)(void*),void* argument){
+    // this function is the only entry point for the maker 
+    // the main file can access this 
+
+    // create a new task 
+    task_t* new_task = (task_t*)malloc(sizeof(task_t));
+    new_task -> function = function;
+    new_task->arg = argument;
+    new_task -> next = NULL;
+
+    // the main thread competes for the lock, with the spawned threads in the consumer 
+    pthread_mutex_lock(&(pool -> lock));
+    // check the queue 
+    if(pool ->queue_tail == NULL){
+        pool -> queue_head = new_task;
+        pool -> queue_tail = new_task;
+    }else {
+        // update the last items pointer 
+        pool -> queue_tail -> next = new_task;
+        // make the tail point to the new task 
+        // this is classic linked list 
+        pool -> queue_tail = new_task;
+    }
+    pool -> active_tasks ++;
+    pthread_cond_signal(&(pool->notify)); // Wake exactly one sleeping thread
+    pthread_mutex_unlock(&(pool->lock));
+
+}
+
+void pool_wait(){
+    // make the main thread get the lock
+    pthread_mutex_lock(&(pool ->lock));
+    while(pool -> active_tasks > 0){
+        // releases the locks and waits
+        pthread_cond_wait(&(pool -> all_done),&(pool -> lock));
+    }
+    pthread_mutex_unlock(&(pool -> lock));
+}
+
+void pool_shutdown() {
+    pthread_mutex_lock(&(pool->lock));
+    pool->shutdown = 1;
+    pthread_cond_broadcast(&(pool->notify)); // Wake all threads so they can exit
+    pthread_mutex_unlock(&(pool->lock));
+
+    for (int i = 0; i < pool->thread_count; i++) {
+        pthread_join(pool->threads[i], NULL);
+    }
+    
+    free(pool->threads);
+    pthread_mutex_destroy(&(pool->lock));
+    pthread_cond_destroy(&(pool->notify));
+    pthread_cond_destroy(&(pool->all_done));
+    free(pool);
+}
